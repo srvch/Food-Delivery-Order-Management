@@ -2,6 +2,7 @@ package com.fooddelivery.order;
 
 import com.fooddelivery.common.exception.BadRequestException;
 import com.fooddelivery.common.exception.ConflictException;
+import com.fooddelivery.common.exception.ForbiddenException;
 import com.fooddelivery.common.exception.NotFoundException;
 import com.fooddelivery.order.dto.OrderItemLine;
 import com.fooddelivery.order.dto.OrderResponse;
@@ -94,8 +95,11 @@ public class OrderService {
                 .orElseThrow(() -> new NotFoundException("Order not found: " + id));
     }
 
-    public OrderResponse getOrder(Long id) {
+    public OrderResponse getOrder(User customer, Long id) {
         Order order = getOrderEntity(id);
+        if (!order.getCustomer().getId().equals(customer.getId())) {
+            throw new ForbiddenException("You may only view your own orders");
+        }
         return toResponse(order, orderItemRepository.findByOrderId(id));
     }
 

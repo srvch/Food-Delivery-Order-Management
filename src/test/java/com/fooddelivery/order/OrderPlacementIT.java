@@ -101,4 +101,24 @@ class OrderPlacementIT extends AbstractIntegrationTest {
                 authed(null, setup.customerToken()), MenuItemResponse[].class);
         assertThat(menu.getBody()[0].stockQuantity()).isEqualTo(10);
     }
+
+    @Test
+    void customerCanViewOwnOrderButNotAnothersOrder() {
+        Setup setup = setUpRestaurantWithStock(10, "D");
+        var request = new PlaceOrderRequest(setup.restaurantId(), java.util.List.of(new PlaceOrderRequest.Item(setup.menuItemId(), 1)));
+        Long orderId = restTemplate.exchange("/orders", HttpMethod.POST,
+                authed(request, setup.customerToken()), OrderResponse.class).getBody().id();
+
+        ResponseEntity<OrderResponse> own = restTemplate.exchange("/orders/" + orderId, HttpMethod.GET,
+                authed(null, setup.customerToken()), OrderResponse.class);
+        assertThat(own.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        String otherCustomerToken = restTemplate.postForEntity("/auth/register",
+                new RegisterRequest("other-customer-d@example.com", "password123", Role.CUSTOMER, null),
+                AuthResponse.class).getBody().token();
+
+        ResponseEntity<String> forbidden = restTemplate.exchange("/orders/" + orderId, HttpMethod.GET,
+                authed(null, otherCustomerToken), String.class);
+        assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
 }

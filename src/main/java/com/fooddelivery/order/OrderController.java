@@ -28,8 +28,9 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public OrderResponse get(@PathVariable Long id) {
-        return orderService.getOrder(id);
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public OrderResponse get(@AuthenticationPrincipal User customer, @PathVariable Long id) {
+        return orderService.getOrder(customer, id);
     }
 
     @GetMapping
