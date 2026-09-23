@@ -38,7 +38,9 @@ class DeliveryPartnerControllerIT extends AbstractIntegrationTest {
 
         ResponseEntity<DeliveryPartnerResponse[]> list = restTemplate.exchange(
                 "/admin/delivery-partners", HttpMethod.GET, authed(null, admin), DeliveryPartnerResponse[].class);
-        DeliveryPartnerResponse profile = list.getBody()[0];
+        DeliveryPartnerResponse profile = java.util.Arrays.stream(list.getBody())
+                .filter(p -> p.email().equals("partner-x@example.com"))
+                .findFirst().orElseThrow();
         assertThat(profile.active()).isFalse();
 
         ResponseEntity<DeliveryPartnerResponse> updated = restTemplate.exchange(

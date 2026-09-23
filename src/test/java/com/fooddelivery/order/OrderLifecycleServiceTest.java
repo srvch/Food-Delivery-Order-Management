@@ -30,6 +30,7 @@ class OrderLifecycleServiceTest {
     @Mock private com.fooddelivery.restaurant.MenuItemRepository menuItemRepository;
     @Mock private com.fooddelivery.restaurant.RestaurantService restaurantService;
     @Mock private PaymentGateway paymentGateway;
+    @Mock private com.fooddelivery.delivery.DeliveryAssignmentService deliveryAssignmentService;
     @InjectMocks private OrderService orderService;
 
     private Order orderWithOwner(Long ownerId, OrderStatus status) {

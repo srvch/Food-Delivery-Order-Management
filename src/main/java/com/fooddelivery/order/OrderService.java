@@ -4,6 +4,7 @@ import com.fooddelivery.common.exception.BadRequestException;
 import com.fooddelivery.common.exception.ConflictException;
 import com.fooddelivery.common.exception.ForbiddenException;
 import com.fooddelivery.common.exception.NotFoundException;
+import com.fooddelivery.delivery.DeliveryAssignmentService;
 import com.fooddelivery.order.dto.OrderItemLine;
 import com.fooddelivery.order.dto.OrderResponse;
 import com.fooddelivery.order.dto.PlaceOrderRequest;
@@ -34,6 +35,7 @@ public class OrderService {
     private final MenuItemRepository menuItemRepository;
     private final RestaurantService restaurantService;
     private final PaymentGateway paymentGateway;
+    private final DeliveryAssignmentService deliveryAssignmentService;
 
     @Transactional
     public OrderResponse placeOrder(User customer, PlaceOrderRequest request) {
@@ -141,6 +143,7 @@ public class OrderService {
         Order order = getOrderEntity(orderId);
         verifyRestaurantOwnership(order, ownerId);
         transition(order, OrderStatus.ACCEPTED);
+        deliveryAssignmentService.createOpenAssignment(order);
         return toResponse(order, orderItemRepository.findByOrderId(orderId));
     }
 
@@ -163,6 +166,13 @@ public class OrderService {
             verifyRestaurantOwnership(order, caller.getId());
             if (target != OrderStatus.PREPARING) {
                 throw new ForbiddenException("Restaurant owners may only mark orders PREPARING via this endpoint");
+            }
+        } else if (caller.getRole() == Role.DELIVERY_PARTNER) {
+            if (!deliveryAssignmentService.isAssignedPartner(orderId, caller.getId())) {
+                throw new ForbiddenException("You are not the assigned delivery partner for this order");
+            }
+            if (target != OrderStatus.OUT_FOR_DELIVERY && target != OrderStatus.DELIVERED) {
+                throw new ForbiddenException("Delivery partners may only mark OUT_FOR_DELIVERY or DELIVERED");
             }
         } else {
             throw new ForbiddenException("You are not authorized to update this order's status");
