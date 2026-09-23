@@ -65,20 +65,16 @@ public class DeliveryPartnerService {
     public DeliveryPartnerResponse updatePartner(Long profileId, DeliveryPartnerUpdateRequest request) {
         DeliveryPartnerProfile profile = profileRepository.findById(profileId)
                 .orElseThrow(() -> new NotFoundException("Delivery partner profile not found: " + profileId));
-        if (!profile.getCity().getId().equals(request.cityId())) {
-            City city = cityRepository.findById(request.cityId())
-                    .orElseThrow(() -> new NotFoundException("City not found: " + request.cityId()));
-            profile.setCity(city);
-        }
+        City city = cityRepository.findById(request.cityId())
+                .orElseThrow(() -> new NotFoundException("City not found: " + request.cityId()));
+        profile.setCity(city);
         profile.setActive(request.active());
         return toResponse(profile);
     }
 
     private DeliveryPartnerResponse toResponse(DeliveryPartnerProfile profile) {
-        User user = profile.getUser();
-        Long userId = user != null ? user.getId() : null;
-        String email = user != null ? user.getEmail() : null;
-        return new DeliveryPartnerResponse(profile.getId(), userId, email,
-                profile.getCity().getId(), profile.getCity().getName(), profile.isActive());
+        return new DeliveryPartnerResponse(profile.getId(), profile.getUser().getId(),
+                profile.getUser().getEmail(), profile.getCity().getId(), profile.getCity().getName(),
+                profile.isActive());
     }
 }
