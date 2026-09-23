@@ -2455,8 +2455,9 @@ class RestaurantMenuControllerIT extends AbstractIntegrationTest {
                 authed(menuItemReq, ownerAToken), String.class);
         assertThat(addToOthers.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        ResponseEntity<MenuItemResponse[]> menu = restTemplate.getForEntity(
-                "/restaurants/" + restaurantA.id() + "/menu", MenuItemResponse[].class);
+        ResponseEntity<MenuItemResponse[]> menu = restTemplate.exchange(
+                "/restaurants/" + restaurantA.id() + "/menu", HttpMethod.GET,
+                authed(null, ownerAToken), MenuItemResponse[].class);
         assertThat(menu.getBody()).hasSize(1);
         assertThat(menu.getBody()[0].name()).isEqualTo("Masala Dosa");
     }
@@ -3732,8 +3733,9 @@ class OrderPlacementIT extends AbstractIntegrationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);
 
-        ResponseEntity<MenuItemResponse[]> menu = restTemplate.getForEntity(
-                "/restaurants/" + setup.restaurantId() + "/menu", MenuItemResponse[].class);
+        ResponseEntity<MenuItemResponse[]> menu = restTemplate.exchange(
+                "/restaurants/" + setup.restaurantId() + "/menu", HttpMethod.GET,
+                authed(null, setup.customerToken()), MenuItemResponse[].class);
         assertThat(menu.getBody()[0].stockQuantity()).isEqualTo(10);
     }
 }
@@ -3838,8 +3840,9 @@ class OrderPlacementConcurrencyIT extends AbstractIntegrationTest {
         assertThat(successCount.get()).isEqualTo(stock);
         assertThat(conflictCount.get()).isEqualTo(concurrentOrders - stock);
 
-        ResponseEntity<MenuItemResponse[]> menu = restTemplate.getForEntity(
-                "/restaurants/" + restaurantId + "/menu", MenuItemResponse[].class);
+        ResponseEntity<MenuItemResponse[]> menu = restTemplate.exchange(
+                "/restaurants/" + restaurantId + "/menu", HttpMethod.GET,
+                authed(null, ownerToken), MenuItemResponse[].class);
         assertThat(menu.getBody()[0].stockQuantity()).isEqualTo(0);
     }
 }
@@ -4229,8 +4232,9 @@ class OrderLifecycleControllerIT extends AbstractIntegrationTest {
                 "/orders/" + secondOrderId + "/reject", HttpMethod.POST, authed(null, ownerToken), OrderResponse.class);
         assertThat(rejected.getBody().status()).isEqualTo(OrderStatus.REJECTED);
 
-        ResponseEntity<MenuItemResponse[]> menu = restTemplate.getForEntity(
-                "/restaurants/" + restaurantId + "/menu", MenuItemResponse[].class);
+        ResponseEntity<MenuItemResponse[]> menu = restTemplate.exchange(
+                "/restaurants/" + restaurantId + "/menu", HttpMethod.GET,
+                authed(null, ownerToken), MenuItemResponse[].class);
         // stock was 10, -2 (first order) -3 (second order, then restored on reject) = 8
         assertThat(menu.getBody()[0].stockQuantity()).isEqualTo(8);
     }
@@ -5854,8 +5858,9 @@ class RatingControllerIT extends AbstractIntegrationTest {
                 authed(new RateRequest(5, "Excellent"), customerToken), RatingResponse.class);
         assertThat(rated.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        ResponseEntity<RestaurantResponse> restaurant = restTemplate.getForEntity(
-                "/restaurants/" + restaurantId, RestaurantResponse.class);
+        ResponseEntity<RestaurantResponse> restaurant = restTemplate.exchange(
+                "/restaurants/" + restaurantId, HttpMethod.GET,
+                authed(null, customerToken), RestaurantResponse.class);
         assertThat(restaurant.getBody().avgRating()).isEqualByComparingTo("5.00");
         assertThat(restaurant.getBody().ratingCount()).isEqualTo(1);
 
