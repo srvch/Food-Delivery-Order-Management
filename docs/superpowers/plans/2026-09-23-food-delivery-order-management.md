@@ -6,13 +6,13 @@
 
 **Architecture:** Single Spring Boot module, package-by-feature (`user`, `city`, `restaurant`, `order`, `delivery`, `rating`, `notification`, `common`). PostgreSQL + Flyway-versioned schema, JWT auth, pessimistic row locks for stock, conditional-update contention for partner assignment, Spring `@Async` + `@TransactionalEventListener(AFTER_COMMIT)` for notification fan-out.
 
-**Tech Stack:** Java 21, Maven, Spring Boot 3.3.x (web, data-jpa, security, validation), PostgreSQL, Flyway, JJWT, Lombok, JUnit 5, Mockito, Testcontainers (Postgres), Awaitility.
+**Tech Stack:** Java 17, Maven, Spring Boot 3.3.x (web, data-jpa, security, validation), PostgreSQL, Flyway, JJWT, Lombok, JUnit 5, Mockito, Testcontainers (Postgres), Awaitility.
 
 **Spec:** `docs/superpowers/specs/2026-09-23-food-delivery-order-management-design.md`
 
 ## Global Constraints
 
-- Java 21, Maven, Spring Boot 3.3.x — exact versions pinned in Task 1's `pom.xml`.
+- Java 17, Maven, Spring Boot 3.3.x — exact versions pinned in Task 1's `pom.xml`.
 - Persistence: PostgreSQL only; `spring.jpa.hibernate.ddl-auto=validate` — schema comes exclusively from Flyway migrations, entities must match exactly.
 - Scope is strictly what the spec's §9 API Surface and §3 Domain Model list — no cancellation, no restaurant hours gating, no delivery-partner availability toggle, no idempotency-key handling, ratings are restaurant-only. Do not add anything beyond this plan's tasks.
 - All mutating endpoints validated with Bean Validation (`@Valid`); all errors returned via a single `GlobalExceptionHandler` producing `ProblemDetail` bodies (Task 2).
@@ -61,7 +61,7 @@ Create `pom.xml`:
     <description>Food Delivery Order Management System</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>17</java.version>
         <jjwt.version>0.12.6</jjwt.version>
     </properties>
 
@@ -5916,7 +5916,7 @@ Development conventions: `CLAUDE.md`
 
 ## Tech stack
 
-Java 21, Spring Boot 3.3 (Web, Data JPA, Security, Validation), PostgreSQL,
+Java 17, Spring Boot 3.3 (Web, Data JPA, Security, Validation), PostgreSQL,
 Flyway, JJWT, JUnit 5, Mockito, Testcontainers, Awaitility.
 
 ## Running the app

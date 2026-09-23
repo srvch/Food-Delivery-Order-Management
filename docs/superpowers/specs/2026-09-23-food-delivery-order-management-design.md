@@ -72,7 +72,7 @@ is testable in isolation behind its service interface.
 | `MenuItem` | id, restaurant FK, name, price, stockQuantity, available | Row-locked on order placement. |
 | `Order` | id, customer FK, restaurant FK, status enum, totalAmount, timestamps | |
 | `OrderItem` | id, order FK, menuItem FK, quantity, unitPriceAtOrder | Price snapshot protects history from later menu price changes. |
-| `Payment` | id, order FK (1:1), amount, status (SUCCEEDED/FAILED) | Simulated charge, same transaction as order placement. |
+| `Payment` | id, order FK (1:1), amount, createdAt | Represents a *successful* charge only — a declined charge throws and rolls back the whole order-placement transaction (see §5), so there's no durable failed-payment state to model. |
 | `DeliveryPartnerProfile` | id, user FK, city FK, active (admin-managed) | Admin approves/deactivates delivery partners. |
 | `DeliveryAssignment` | id, order FK (1:1), status (OPEN/ACCEPTED), acceptedBy FK (nullable), offeredAt, acceptedAt | Contention point: conditional update, not a lock. No CANCELLED state — nothing in scope can produce one, since order rejection only happens before an assignment exists. |
 | `Rating` | id, order FK (unique), rater FK, score (1-5), review, createdAt | Rates the restaurant for a delivered order — the requirement only says "rate," with no separate delivery-partner target. |
@@ -125,10 +125,12 @@ Single `@Transactional` service method:
    different orders.
 2. Validate `stock >= requestedQuantity` for every item; if any item fails,
    abort the whole order (no partial decrement across items).
-3. Decrement stock, insert `Order` (`PLACED`) + `OrderItem` rows, insert a
-   `Payment` row (simulated charge).
-4. If the simulated payment fails, the entire transaction rolls back — stock
-   is never decremented for a failed payment.
+3. Decrement stock, insert `Order` (`PLACED`) + `OrderItem` rows.
+4. Call a `PaymentGateway.charge(amount)` port; the simulated implementation
+   always succeeds (no real gateway is in scope), but the call happens
+   inside the same transaction, so if it ever threw, the whole transaction
+   — stock decrement included — would roll back with it. Only on success is
+   a `Payment` row inserted.
 5. On commit, publish `OrderPlacedEvent` (consumed asynchronously, see §7).
 
 ## 6. Delivery-Partner Assignment — Contention
