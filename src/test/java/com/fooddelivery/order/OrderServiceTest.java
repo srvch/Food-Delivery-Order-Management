@@ -33,6 +33,7 @@ class OrderServiceTest {
     @Mock private MenuItemRepository menuItemRepository;
     @Mock private RestaurantService restaurantService;
     @Mock private PaymentGateway paymentGateway;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @InjectMocks private OrderService orderService;
 
     private MenuItem menuItem(Long id, Restaurant restaurant, BigDecimal price, int stock) {

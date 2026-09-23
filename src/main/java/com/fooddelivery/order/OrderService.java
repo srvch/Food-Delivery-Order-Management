@@ -8,6 +8,8 @@ import com.fooddelivery.delivery.DeliveryAssignmentService;
 import com.fooddelivery.order.dto.OrderItemLine;
 import com.fooddelivery.order.dto.OrderResponse;
 import com.fooddelivery.order.dto.PlaceOrderRequest;
+import com.fooddelivery.order.event.OrderPlacedEvent;
+import com.fooddelivery.order.event.OrderStatusChangedEvent;
 import com.fooddelivery.restaurant.MenuItem;
 import com.fooddelivery.restaurant.MenuItemRepository;
 import com.fooddelivery.restaurant.Restaurant;
@@ -15,6 +17,7 @@ import com.fooddelivery.restaurant.RestaurantService;
 import com.fooddelivery.user.Role;
 import com.fooddelivery.user.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +39,7 @@ public class OrderService {
     private final RestaurantService restaurantService;
     private final PaymentGateway paymentGateway;
     private final DeliveryAssignmentService deliveryAssignmentService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public OrderResponse placeOrder(User customer, PlaceOrderRequest request) {
@@ -91,6 +95,8 @@ public class OrderService {
         payment.setAmount(total);
         paymentRepository.save(payment);
 
+        eventPublisher.publishEvent(new OrderPlacedEvent(order.getId()));
+
         return toResponse(order, orderItems);
     }
 
@@ -128,8 +134,10 @@ public class OrderService {
             throw new ConflictException(
                     "Cannot transition order " + order.getId() + " from " + order.getStatus() + " to " + target);
         }
+        OrderStatus previous = order.getStatus();
         order.setStatus(target);
         order.setUpdatedAt(java.time.Instant.now());
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(order.getId(), previous, target));
     }
 
     private void verifyRestaurantOwnership(Order order, Long ownerId) {

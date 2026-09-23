@@ -31,6 +31,7 @@ class OrderLifecycleServiceTest {
     @Mock private com.fooddelivery.restaurant.RestaurantService restaurantService;
     @Mock private PaymentGateway paymentGateway;
     @Mock private com.fooddelivery.delivery.DeliveryAssignmentService deliveryAssignmentService;
+    @Mock private org.springframework.context.ApplicationEventPublisher eventPublisher;
     @InjectMocks private OrderService orderService;
 
     private Order orderWithOwner(Long ownerId, OrderStatus status) {
