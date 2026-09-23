@@ -10,20 +10,33 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
-@Testcontainers
 @ActiveProfiles("test")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class AbstractIntegrationTest {
 
-    @Container
+    // Deliberately NOT managed by @Testcontainers/@Container: that JUnit
+    // extension starts/stops the container per test CLASS. Since this static
+    // field is declared once in this shared superclass, every IT subclass's
+    // extension instance stops the very same container object after its own
+    // tests finish - killing it out from under whichever subclass runs next
+    // in the same JVM. Spring's context cache doesn't rebuild per subclass
+    // (the inherited @DynamicPropertySource method makes the customizer look
+    // identical across subclasses), so the next class replays a cached
+    // ApplicationContext wired to a datasource URL/port that no longer
+    // exists - "connection refused" against an already-stopped container.
+    // The standard fix (Testcontainers' "singleton container" pattern) is to
+    // start it once, here, and never stop it explicitly; the Ryuk reaper
+    // cleans it up when the whole JVM exits.
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16-alpine")
                     .withDatabaseName("fooddelivery")
                     .withUsername("fooddelivery")
                     .withPassword("fooddelivery");
+
+    static {
+        POSTGRES.start();
+    }
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
