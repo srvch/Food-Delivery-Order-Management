@@ -63,8 +63,9 @@ class RestaurantMenuControllerIT extends AbstractIntegrationTest {
                 authed(menuItemReq, ownerAToken), String.class);
         assertThat(addToOthers.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        ResponseEntity<MenuItemResponse[]> menu = restTemplate.getForEntity(
-                "/restaurants/" + restaurantA.id() + "/menu", MenuItemResponse[].class);
+        ResponseEntity<MenuItemResponse[]> menu = restTemplate.exchange(
+                "/restaurants/" + restaurantA.id() + "/menu", HttpMethod.GET,
+                authed(null, ownerAToken), MenuItemResponse[].class);
         assertThat(menu.getBody()).hasSize(1);
         assertThat(menu.getBody()[0].name()).isEqualTo("Masala Dosa");
     }
