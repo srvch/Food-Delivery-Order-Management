@@ -1,9 +1,11 @@
 package com.fooddelivery.common;
 
+import jakarta.annotation.PostConstruct;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -32,4 +34,16 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected TestRestTemplate restTemplate;
+
+    // The default HttpURLConnection-backed request factory used by
+    // TestRestTemplate has a long-standing JDK bug (JDK-8146565):
+    // it throws HttpRetryException ("cannot retry due to server
+    // authentication, in streaming mode") for any 401/407 response to a
+    // POST request with a body, even without a WWW-Authenticate challenge.
+    // Switching to java.net.http.HttpClient (via JdkClientHttpRequestFactory)
+    // avoids this bug entirely.
+    @PostConstruct
+    void configureRestTemplateRequestFactory() {
+        restTemplate.getRestTemplate().setRequestFactory(new JdkClientHttpRequestFactory());
+    }
 }

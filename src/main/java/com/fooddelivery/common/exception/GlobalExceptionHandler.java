@@ -41,6 +41,11 @@ public class GlobalExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, message);
     }
 
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ProblemDetail handleAuthentication(org.springframework.security.core.AuthenticationException ex) {
+        return problem(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+    }
+
     private ProblemDetail problem(HttpStatus status, String message) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(status, message);
         detail.setProperty("timestamp", Instant.now());
