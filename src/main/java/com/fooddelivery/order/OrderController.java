@@ -2,6 +2,7 @@ package com.fooddelivery.order;
 
 import com.fooddelivery.order.dto.OrderResponse;
 import com.fooddelivery.order.dto.PlaceOrderRequest;
+import com.fooddelivery.order.dto.UpdateStatusRequest;
 import com.fooddelivery.user.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,5 +38,24 @@ public class OrderController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public List<OrderResponse> myOrders(@AuthenticationPrincipal User customer) {
         return orderService.listCustomerOrders(customer.getId());
+    }
+
+    @PostMapping("/{id}/accept")
+    @PreAuthorize("hasRole('RESTAURANT_OWNER')")
+    public OrderResponse accept(@PathVariable Long id, @AuthenticationPrincipal User owner) {
+        return orderService.acceptOrder(owner.getId(), id);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('RESTAURANT_OWNER')")
+    public OrderResponse reject(@PathVariable Long id, @AuthenticationPrincipal User owner) {
+        return orderService.rejectOrder(owner.getId(), id);
+    }
+
+    @PostMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('RESTAURANT_OWNER', 'DELIVERY_PARTNER')")
+    public OrderResponse updateStatus(@PathVariable Long id, @AuthenticationPrincipal User caller,
+                                       @Valid @RequestBody UpdateStatusRequest request) {
+        return orderService.updateStatus(caller, id, request.status());
     }
 }

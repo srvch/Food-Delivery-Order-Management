@@ -11,6 +11,7 @@ import com.fooddelivery.restaurant.MenuItem;
 import com.fooddelivery.restaurant.MenuItemRepository;
 import com.fooddelivery.restaurant.Restaurant;
 import com.fooddelivery.restaurant.RestaurantService;
+import com.fooddelivery.user.Role;
 import com.fooddelivery.user.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -109,12 +111,80 @@ public class OrderService {
                 .toList();
     }
 
+    private static final Map<OrderStatus, Set<OrderStatus>> TRANSITIONS = Map.of(
+            OrderStatus.PLACED, Set.of(OrderStatus.ACCEPTED, OrderStatus.REJECTED),
+            OrderStatus.ACCEPTED, Set.of(OrderStatus.PREPARING),
+            OrderStatus.PREPARING, Set.of(OrderStatus.OUT_FOR_DELIVERY),
+            OrderStatus.OUT_FOR_DELIVERY, Set.of(OrderStatus.DELIVERED),
+            OrderStatus.DELIVERED, Set.of(),
+            OrderStatus.REJECTED, Set.of()
+    );
+
+    private void transition(Order order, OrderStatus target) {
+        Set<OrderStatus> allowed = TRANSITIONS.getOrDefault(order.getStatus(), Set.of());
+        if (!allowed.contains(target)) {
+            throw new ConflictException(
+                    "Cannot transition order " + order.getId() + " from " + order.getStatus() + " to " + target);
+        }
+        order.setStatus(target);
+        order.setUpdatedAt(java.time.Instant.now());
+    }
+
+    private void verifyRestaurantOwnership(Order order, Long ownerId) {
+        if (!order.getRestaurant().getOwner().getId().equals(ownerId)) {
+            throw new ForbiddenException("You do not own the restaurant for order " + order.getId());
+        }
+    }
+
+    @Transactional
+    public OrderResponse acceptOrder(Long ownerId, Long orderId) {
+        Order order = getOrderEntity(orderId);
+        verifyRestaurantOwnership(order, ownerId);
+        transition(order, OrderStatus.ACCEPTED);
+        return toResponse(order, orderItemRepository.findByOrderId(orderId));
+    }
+
+    @Transactional
+    public OrderResponse rejectOrder(Long ownerId, Long orderId) {
+        Order order = getOrderEntity(orderId);
+        verifyRestaurantOwnership(order, ownerId);
+        transition(order, OrderStatus.REJECTED);
+        for (OrderItem orderItem : orderItemRepository.findByOrderId(orderId)) {
+            MenuItem item = orderItem.getMenuItem();
+            item.setStockQuantity(item.getStockQuantity() + orderItem.getQuantity());
+        }
+        return toResponse(order, orderItemRepository.findByOrderId(orderId));
+    }
+
+    @Transactional
+    public OrderResponse updateStatus(User caller, Long orderId, OrderStatus target) {
+        Order order = getOrderEntity(orderId);
+        if (caller.getRole() == Role.RESTAURANT_OWNER) {
+            verifyRestaurantOwnership(order, caller.getId());
+            if (target != OrderStatus.PREPARING) {
+                throw new ForbiddenException("Restaurant owners may only mark orders PREPARING via this endpoint");
+            }
+        } else {
+            throw new ForbiddenException("You are not authorized to update this order's status");
+        }
+        transition(order, target);
+        return toResponse(order, orderItemRepository.findByOrderId(orderId));
+    }
+
+    public List<OrderResponse> listRestaurantOrders(Long ownerId, Long restaurantId) {
+        restaurantService.getOwnedRestaurantEntity(restaurantId, ownerId);
+        return orderRepository.findByRestaurantId(restaurantId).stream()
+                .map(order -> toResponse(order, orderItemRepository.findByOrderId(order.getId())))
+                .toList();
+    }
+
     private OrderResponse toResponse(Order order, List<OrderItem> items) {
         List<OrderItemLine> lines = items.stream()
                 .map(oi -> new OrderItemLine(oi.getMenuItem().getId(), oi.getMenuItem().getName(),
                         oi.getQuantity(), oi.getUnitPriceAtOrder()))
                 .toList();
-        return new OrderResponse(order.getId(), order.getCustomer().getId(), order.getRestaurant().getId(),
+        Long customerId = order.getCustomer() == null ? null : order.getCustomer().getId();
+        return new OrderResponse(order.getId(), customerId, order.getRestaurant().getId(),
                 order.getStatus(), order.getTotalAmount(), lines, order.getCreatedAt(), order.getUpdatedAt());
     }
 }
