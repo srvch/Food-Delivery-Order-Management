@@ -59,7 +59,10 @@ class RatingControllerIT extends AbstractIntegrationTest {
                 AuthResponse.class).getBody().token();
         DeliveryPartnerResponse[] partners = restTemplate.exchange("/admin/delivery-partners", HttpMethod.GET,
                 authed(null, admin), DeliveryPartnerResponse[].class).getBody();
-        restTemplate.exchange("/admin/delivery-partners/" + partners[0].id(), HttpMethod.PUT,
+        Long partnerId = java.util.Arrays.stream(partners)
+                .filter(p -> p.email().equals("rate-partner@example.com"))
+                .findFirst().orElseThrow().id();
+        restTemplate.exchange("/admin/delivery-partners/" + partnerId, HttpMethod.PUT,
                 authed(new DeliveryPartnerUpdateRequest(cityId, true), admin), Void.class);
 
         var placeReq = new PlaceOrderRequest(restaurantId, List.of(new PlaceOrderRequest.Item(menuItemId, 1)));

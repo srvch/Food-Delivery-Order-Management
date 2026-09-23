@@ -160,11 +160,18 @@ public class OrderService {
         Order order = getOrderEntity(orderId);
         verifyRestaurantOwnership(order, ownerId);
         transition(order, OrderStatus.REJECTED);
-        for (OrderItem orderItem : orderItemRepository.findByOrderId(orderId)) {
-            MenuItem item = orderItem.getMenuItem();
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        List<Long> ids = items.stream().map(oi -> oi.getMenuItem().getId()).distinct().sorted().toList();
+        List<MenuItem> lockedItems = menuItemRepository.findAllByIdInForUpdate(ids);
+        Map<Long, MenuItem> itemsById = new HashMap<>();
+        for (MenuItem item : lockedItems) {
+            itemsById.put(item.getId(), item);
+        }
+        for (OrderItem orderItem : items) {
+            MenuItem item = itemsById.get(orderItem.getMenuItem().getId());
             item.setStockQuantity(item.getStockQuantity() + orderItem.getQuantity());
         }
-        return toResponse(order, orderItemRepository.findByOrderId(orderId));
+        return toResponse(order, items);
     }
 
     @Transactional

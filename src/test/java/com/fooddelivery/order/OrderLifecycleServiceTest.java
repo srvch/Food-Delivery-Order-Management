@@ -87,6 +87,7 @@ class OrderLifecycleServiceTest {
         orderItem.setQuantity(3);
         when(orderRepository.findById(5L)).thenReturn(Optional.of(order));
         when(orderItemRepository.findByOrderId(5L)).thenReturn(List.of(orderItem));
+        when(menuItemRepository.findAllByIdInForUpdate(List.of(10L))).thenReturn(List.of(menuItem));
 
         OrderResponse response = orderService.rejectOrder(1L, 5L);
 
