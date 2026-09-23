@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: food-delivery-order-management
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fooddelivery
+    username: fooddelivery
+    password: fooddelivery
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: "change-me-to-a-long-random-base64-string-change-me-please"
+    expiration-ms: 3600000

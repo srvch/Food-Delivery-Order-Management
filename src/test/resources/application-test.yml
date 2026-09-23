@@ -1,0 +1,11 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+app:
+  jwt:
+    secret: "test-only-secret-key-not-for-production-use-0123456789"
+    expiration-ms: 3600000
