@@ -3,6 +3,7 @@ package com.fooddelivery.user;
 import com.fooddelivery.common.exception.ConflictException;
 import com.fooddelivery.common.exception.ForbiddenException;
 import com.fooddelivery.common.security.JwtService;
+import com.fooddelivery.delivery.DeliveryPartnerService;
 import com.fooddelivery.user.dto.AuthResponse;
 import com.fooddelivery.user.dto.RegisterRequest;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ class AuthServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtService jwtService;
     @Mock private AuthenticationManager authenticationManager;
+    @Mock private DeliveryPartnerService deliveryPartnerService;
     @InjectMocks private AuthService authService;
 
     @Test
