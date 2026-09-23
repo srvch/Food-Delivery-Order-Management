@@ -3469,6 +3469,7 @@ package com.fooddelivery.order;
 
 import com.fooddelivery.common.exception.BadRequestException;
 import com.fooddelivery.common.exception.ConflictException;
+import com.fooddelivery.common.exception.ForbiddenException;
 import com.fooddelivery.common.exception.NotFoundException;
 import com.fooddelivery.order.dto.OrderItemLine;
 import com.fooddelivery.order.dto.OrderResponse;
@@ -3561,8 +3562,11 @@ public class OrderService {
                 .orElseThrow(() -> new NotFoundException("Order not found: " + id));
     }
 
-    public OrderResponse getOrder(Long id) {
+    public OrderResponse getOrder(User customer, Long id) {
         Order order = getOrderEntity(id);
+        if (!order.getCustomer().getId().equals(customer.getId())) {
+            throw new ForbiddenException("You may only view your own orders");
+        }
         return toResponse(order, orderItemRepository.findByOrderId(id));
     }
 
@@ -3623,8 +3627,9 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
-    public OrderResponse get(@PathVariable Long id) {
-        return orderService.getOrder(id);
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public OrderResponse get(@PathVariable Long id, @AuthenticationPrincipal User customer) {
+        return orderService.getOrder(customer, id);
     }
 
     @GetMapping
@@ -3742,6 +3747,26 @@ class OrderPlacementIT extends AbstractIntegrationTest {
                 "/restaurants/" + setup.restaurantId() + "/menu", HttpMethod.GET,
                 authed(null, setup.customerToken()), MenuItemResponse[].class);
         assertThat(menu.getBody()[0].stockQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    void customerCanViewOwnOrderButNotAnothersOrder() {
+        Setup setup = setUpRestaurantWithStock(10, "D");
+        var request = new PlaceOrderRequest(setup.restaurantId(), java.util.List.of(new PlaceOrderRequest.Item(setup.menuItemId(), 1)));
+        Long orderId = restTemplate.exchange("/orders", HttpMethod.POST,
+                authed(request, setup.customerToken()), OrderResponse.class).getBody().id();
+
+        ResponseEntity<OrderResponse> own = restTemplate.exchange("/orders/" + orderId, HttpMethod.GET,
+                authed(null, setup.customerToken()), OrderResponse.class);
+        assertThat(own.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        String otherCustomerToken = restTemplate.postForEntity("/auth/register",
+                new RegisterRequest("other-customer-d@example.com", "password123", Role.CUSTOMER, null),
+                AuthResponse.class).getBody().token();
+
+        ResponseEntity<String> forbidden = restTemplate.exchange("/orders/" + orderId, HttpMethod.GET,
+                authed(null, otherCustomerToken), String.class);
+        assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 }
 ```
