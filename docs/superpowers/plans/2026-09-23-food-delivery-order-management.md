@@ -2617,11 +2617,16 @@ class DeliveryPartnerServiceTest {
     void updatePartnerTogglesActive() {
         City city = new City();
         city.setId(1L);
+        User user = new User();
+        user.setId(7L);
+        user.setEmail("partner@example.com");
         DeliveryPartnerProfile profile = new DeliveryPartnerProfile();
         profile.setId(200L);
+        profile.setUser(user);
         profile.setCity(city);
         profile.setActive(false);
         when(profileRepository.findById(200L)).thenReturn(Optional.of(profile));
+        when(cityRepository.findById(1L)).thenReturn(Optional.of(city));
 
         var request = new DeliveryPartnerUpdateRequest(1L, true);
         DeliveryPartnerResponse response = deliveryPartnerService.updatePartner(200L, request);
