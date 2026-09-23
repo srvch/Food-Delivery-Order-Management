@@ -74,7 +74,7 @@ is testable in isolation behind its service interface.
 | `OrderItem` | id, order FK, menuItem FK, quantity, unitPriceAtOrder | Price snapshot protects history from later menu price changes. |
 | `Payment` | id, order FK (1:1), amount, status (SUCCEEDED/FAILED) | Simulated charge, same transaction as order placement. |
 | `DeliveryPartnerProfile` | id, user FK, city FK, active (admin-managed) | Admin approves/deactivates delivery partners. |
-| `DeliveryAssignment` | id, order FK (1:1), status (OPEN/ACCEPTED/CANCELLED), acceptedBy FK (nullable), offeredAt, acceptedAt | Contention point: conditional update, not a lock. |
+| `DeliveryAssignment` | id, order FK (1:1), status (OPEN/ACCEPTED), acceptedBy FK (nullable), offeredAt, acceptedAt | Contention point: conditional update, not a lock. No CANCELLED state — nothing in scope can produce one, since order rejection only happens before an assignment exists. |
 | `Rating` | id, order FK (unique), rater FK, score (1-5), review, createdAt | Rates the restaurant for a delivered order — the requirement only says "rate," with no separate delivery-partner target. |
 | `Notification` | id, recipient FK, order FK, message, read, createdAt | Persisted result of async fan-out. |
 
