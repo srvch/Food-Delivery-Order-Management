@@ -68,14 +68,14 @@ is testable in isolation behind its service interface.
 |---|---|---|
 | `User` | id, email, password (bcrypt), role enum, enabled | Single table + role enum; role-specific data lives in linked profile entities. |
 | `City` | id, name, active | Admin-managed. |
-| `Restaurant` | id, city FK, owner FK, name, address, open/close hours, isOpen (derived), avgRating (rollup) | |
+| `Restaurant` | id, city FK, owner FK, name, address, avgRating (rollup) | |
 | `MenuItem` | id, restaurant FK, name, price, stockQuantity, available | Row-locked on order placement. |
-| `Order` | id, customer FK, restaurant FK, status enum, totalAmount, idempotencyKey (unique), timestamps | |
+| `Order` | id, customer FK, restaurant FK, status enum, totalAmount, timestamps | |
 | `OrderItem` | id, order FK, menuItem FK, quantity, unitPriceAtOrder | Price snapshot protects history from later menu price changes. |
 | `Payment` | id, order FK (1:1), amount, status (SUCCEEDED/FAILED) | Simulated charge, same transaction as order placement. |
-| `DeliveryPartnerProfile` | id, user FK, city FK, availability enum (AVAILABLE/BUSY/OFFLINE) | |
+| `DeliveryPartnerProfile` | id, user FK, city FK, active (admin-managed) | Admin approves/deactivates delivery partners. |
 | `DeliveryAssignment` | id, order FK (1:1), status (OPEN/ACCEPTED/CANCELLED), acceptedBy FK (nullable), offeredAt, acceptedAt | Contention point: conditional update, not a lock. |
-| `Rating` | id, order FK, targetType (RESTAURANT/DELIVERY_PARTNER), targetId, rater FK, score (1-5), review, createdAt | Unique per (order, targetType). |
+| `Rating` | id, order FK (unique), rater FK, score (1-5), review, createdAt | Rates the restaurant for a delivered order — the requirement only says "rate," with no separate delivery-partner target. |
 | `Notification` | id, recipient FK, order FK, message, read, createdAt | Persisted result of async fan-out. |
 
 ## 4. Order Lifecycle & State Machine
@@ -87,7 +87,6 @@ PLACED --accept(owner)--> ACCEPTED --start-preparing--> PREPARING
                                                           v
                                                   OUT_FOR_DELIVERY --deliver(partner)--> DELIVERED
 PLACED --reject(owner)--> REJECTED
-PLACED|ACCEPTED --cancel(customer)--> CANCELLED
 ```
 
 Who may trigger each transition:
@@ -98,7 +97,6 @@ Who may trigger each transition:
   OUT_FOR_DELIVERY`, `OUT_FOR_DELIVERY -> DELIVERED`. Moving to
   `OUT_FOR_DELIVERY` requires the order's `DeliveryAssignment` to already be
   `ACCEPTED` (see §6).
-- Customer: `PLACED -> CANCELLED`, `ACCEPTED -> CANCELLED`.
 
 Both owner and partner status changes go through the same
 `POST /orders/{id}/status` endpoint; the service validates the caller's role
@@ -110,8 +108,8 @@ Transitions are enforced via an explicit transition map in the order service
 read and extend the whole state machine, rather than scattered conditionals.
 An illegal transition returns 409 Conflict with a descriptive error body.
 
-Rejecting or cancelling an order refunds the simulated payment and restores
-menu-item stock, in the same transaction as the status change.
+Rejecting an order refunds the simulated payment and restores menu-item
+stock, in the same transaction as the status change.
 
 ## 5. Order Placement — Atomicity & Concurrency
 
@@ -133,19 +131,14 @@ Single `@Transactional` service method:
    is never decremented for a failed payment.
 5. On commit, publish `OrderPlacedEvent` (consumed asynchronously, see §7).
 
-**Idempotency:** the client may supply an idempotency key; a repeat request
-with the same key returns the original order rather than re-charging or
-re-decrementing stock (enforced via a unique index on `(customer_id,
-idempotency_key)`).
-
 ## 6. Delivery-Partner Assignment — Contention
 
 "Partner assignment should handle multiple partners contending for the same
 order."
 
 When an order reaches `ACCEPTED`, a `DeliveryAssignment` row is created with
-status `OPEN`, visible to available partners (`AVAILABLE` status) in the
-restaurant's city via `GET /assignments/open?city=`.
+status `OPEN`, visible to active delivery partners in the restaurant's city
+via `GET /assignments/open?city=`.
 
 Any eligible partner calls `POST /assignments/{id}/accept`. The service
 issues a single conditional update:
@@ -200,11 +193,10 @@ Role permissions (enforced via `@PreAuthorize`):
   manage delivery partners (approve/deactivate).
 - **RESTAURANT_OWNER** — manage menu items for their own restaurant(s) only;
   accept/reject orders for their own restaurant.
-- **CUSTOMER** — browse restaurants/menus; place orders; cancel own orders;
+- **CUSTOMER** — browse restaurants/menus; place orders; track own orders;
   rate own delivered orders.
 - **DELIVERY_PARTNER** — view open assignments in their city; accept
-  assignments; update status for orders assigned to them; toggle own
-  availability.
+  assignments; update status for orders assigned to them.
 
 Role-level checks alone don't stop cross-tenant access (e.g. one owner
 editing another's menu), so ownership is additionally checked in the service
@@ -221,36 +213,18 @@ owning id.
   `POST /orders/{id}/reject`, `POST /orders/{id}/status` (e.g. mark
   `PREPARING`)
 - **Customer:** `GET /restaurants?city=`, `GET /restaurants/{id}/menu`,
-  `POST /orders`, `GET /orders/{id}`, `GET /orders` (paginated, filterable by
-  status), `POST /orders/{id}/cancel`, `POST /orders/{id}/ratings`
+  `POST /orders`, `GET /orders/{id}`, `GET /orders` (own order history),
+  `POST /orders/{id}/ratings`
 - **Delivery Partner:** `GET /assignments/open?city=`,
   `POST /assignments/{id}/accept`, `POST /orders/{id}/status` (e.g. mark
-  `OUT_FOR_DELIVERY`/`DELIVERED`), `PUT /delivery-partners/me/availability`
+  `OUT_FOR_DELIVERY`/`DELIVERED`)
 - **Shared:** `GET /notifications`, `POST /notifications/{id}/read`
 
-All list endpoints are paginated (`page`/`size`). All mutating endpoints use
-Bean Validation (`@Valid`). Errors use a consistent RFC-7807-style
-`ProblemDetail` body (status, error code, message, timestamp).
+All mutating endpoints use Bean Validation (`@Valid`). Errors use a
+consistent RFC-7807-style `ProblemDetail` body (status, error code, message,
+timestamp).
 
-## 10. Feature Depth (confirmed extras)
-
-Beyond the literal requirement text, the following are included because they
-are realistic, low-cost additions that demonstrate breadth without expanding
-scope substantially:
-
-- Order cancellation, restricted to `PLACED`/`ACCEPTED` states.
-- Restaurant open/close hours gating whether it can accept new orders.
-- Delivery-partner availability toggle (`AVAILABLE`/`BUSY`/`OFFLINE`).
-- Paginated/filterable order search and history.
-- Idempotent order placement via client-supplied idempotency key.
-- Rating + review for both the restaurant and the delivery partner per
-  order, with rolling average on each.
-
-Explicitly deferred as out of scope for this exercise: coupons/discounts,
-delivery-partner earnings ledger, restaurant analytics endpoints, scheduled
-orders, multi-restaurant cart.
-
-## 11. Testing Approach
+## 10. Testing Approach
 
 - **Unit tests:** service-layer logic with mocked repositories — state
   transition rules, RBAC ownership checks, notification event construction.
@@ -266,7 +240,7 @@ orders, multi-restaurant cart.
 - **Async assertions:** Awaitility, polling until expected `Notification`
   rows appear.
 
-## 12. Assumptions
+## 11. Assumptions
 
 - A restaurant has exactly one owner; an owner may own multiple restaurants.
 - A customer orders from one restaurant per order (no cross-restaurant
@@ -277,3 +251,9 @@ orders, multi-restaurant cart.
   integration.
 - "Basic RBAC" is interpreted as role + resource-ownership checks, not
   fine-grained permission policies.
+- Ratings are attached to the restaurant per delivered order (the
+  requirement says "rate" with no separate delivery-partner target); no
+  order cancellation, no restaurant open/close-hours gating, no
+  delivery-partner availability toggle, and no idempotency-key handling —
+  none of these are named in the requirement, so they're left out rather
+  than added as unrequested scope.
